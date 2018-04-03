@@ -1,0 +1,16 @@
+backports-abc==0.5
+bcrypt==3.1.4
+cffi==1.11.5
+click==6.7
+Flask==0.12.2
+Flask-Bcrypt==0.7.1
+futures==3.2.0
+itsdangerous==0.24
+Jinja2==2.10
+MarkupSafe==1.0
+peewee==3.2.2
+pycparser==2.18
+singledispatch==3.4.0.3
+six==1.11.0
+tornado==5.0.1
+Werkzeug==0.14.1
