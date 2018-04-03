@@ -4,11 +4,11 @@ This is a simple Flask-based JSON server
 
 Flask simple JSON "database" server. (Spring 2018)
 
-A work in progress
+A work in progress-- if you find it interesting or useful, let me know!
 
-#What it is:
+# What it is:
 
-A single-file lightweight JSON server that uses Flask and Peewee ORM
+A single-file *experimental* lightweight JSON server that uses Flask and Peewee ORM
 requires Python 2.7.x, Flask, Flask-bcrypt, Peewee, requests, tornado
 
 It would be trivial for someone to port to Python 3.5+
@@ -22,6 +22,10 @@ Peewee will allow either a SQLite or Postgres database backends,
 for now it will use SQLite since I am not sure if there is any
 value in this code other than a demonstration of CRUD API that
 should accept generic session oriented interaction.
+
+# What it is not:
+
+It is not "production ready" and only for experimentation.
 
 # Intent:
 
