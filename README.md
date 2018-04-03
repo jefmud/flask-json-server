@@ -6,6 +6,14 @@ Flask simple JSON "database" server. (Spring 2018)
 
 A work in progress-- if you find it interesting or useful, let me know!
 
+# Intended audience:
+
+Beginning and Intermediate full-stack developers--  if you read this far, you probably already have some idea
+of what RESTful API means.  You probably already played around with Python, Flask, JSON, or Javascript.
+
+I am not intending to write extensive documentation since you should be able to read my code (it isn't rocket
+science or tricky) and see what I have done, and how you might improve it!
+
 # What it is:
 
 A single-file *experimental* lightweight JSON server that uses Flask and Peewee ORM
@@ -25,7 +33,8 @@ should accept generic session oriented interaction.
 
 # What it is not:
 
-It is not "production ready" and only for experimentation.
+It is not "production ready" and only for experimentation.  It is not "stateless", meaning that
+you need to handshake with the API before you can do most transactions.
 
 # Intent:
 
@@ -72,5 +81,59 @@ http://www.tornadoweb.org
 
 (Other great options are "Twisted", and "Waitress")
 
-> 
+# Running the "Server"
+
+Setting up a virtual environment is HIGHLY recommended.  I am using Python 2.7.14, but should have no problems working with
+Python 2.7.9 and above.
+
+### use pip to install required packages
+```
+$ pip install flask
+$ pip install flask-bcrypt
+$ pip install peewee
+```
+
+### create an administrative user
+
+```
+$ python app.py --createadmin
+```
+
+### run the app
+
+by default, it will run on port 10987
+
+```
+$ python app.py
+```
+
+### navigate to web interface
+
+http://localhost:10987
+
+you will see the current timestamp
+
+### navigate to the login
+
+http://localhost:10987/login
+
+will present you with a simple login and will return your "profile"
+
+### navigate to logout
+
+will be a simple logout (flushing the session data)
+
+### Running via Tornado server
+
+I have included a small tornado server hook that will allow you to run Flask in
+a pseudo-non-blocking mode.  Note: this is an experimental server and not necessarily
+thread safe... so as they say *caveat emptor*
+
+By default, the server runs on port 8080, the example below has it running on port 10987
+
+```
+$ python tserver.py --port 10987
+```
+
+Good luck and may the spirit of Guido VanRossum guide your adventures in Python.
 
