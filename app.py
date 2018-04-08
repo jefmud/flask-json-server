@@ -26,6 +26,11 @@ It should be easy enough to be accessed by Javascript (think AJAX) or Python.
 But really programs written in any language that supports http requests
 such as Java, .NET, Ruby, etc. would work as a client.
 
+If this is NOT running on the same server/port as the AJAX,
+you need to use JSONP type response to comply with
+Cross-origin-response (CORS).  Flask CORS is utilized to insert into the
+header that the server is ok with cross-origin requests.
+
 Proof of concept will be a Blog site written with
 REACT components, and possibly demonstration projects associated with calendar
 maintenance.
@@ -52,6 +57,7 @@ from flask import (abort, Flask, g, jsonify, make_response,
                    session, url_for)
 
 from flask_bcrypt import generate_password_hash, check_password_hash
+from flask_cors import CORS
 
 from peewee import *
 from playhouse.shortcuts import model_to_dict
@@ -62,6 +68,7 @@ def token_generator(size=12, chars=string.ascii_uppercase + string.ascii_lowerca
 
 app = Flask(__name__)
 app.secret_key = "rx3$hYE08JCYc*&^Jnb^%$"
+CORS(app)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, 'dataobjects.db')
@@ -86,6 +93,22 @@ class DataObj(Model):
     timestamp = DateTimeField(default=datetime.datetime.now)
     token_required = BooleanField(default=True)
 
+    def payload(self, wrapper='object', verbose=False):
+        if verbose:
+            obj = model_to_dict(self)
+        else:
+            obj = {}
+            obj['id'] = self.id
+            obj['data'] = self.data
+            obj['timestamp'] = self.timestamp
+        if wrapper:
+            return {wrapper: obj}
+        else:
+            return obj
+        
+    def __repr__(self):
+        return "DataObj({})".format(self.id)
+    
     class Meta:
         database = DB
 
@@ -144,6 +167,21 @@ def initialize(args):
     DB.connect()
         
     if len(args) > 1:
+        
+        if '--testdata' in args:
+            items = [{'name':'Fred Flintstone', 'home':'Bedrock', 'age':40},
+                     {'name':'Barney Rubble', 'home':'Bedrock', 'age':38},
+                     {'name':'Ricky LeFleur', 'home':'Sunnyvale', 'age':35},
+                     {'name':'Jim Lahey', 'home':'Sunnyvale', 'age':60},
+                     {'name':'Bubbles', 'home':'Sunnyvale', 'age':34}
+                     ]
+            for item in items:
+                try:
+                    user = User.get(User.id==1)
+                    DataObj.create(user_token=user.token, data=item)
+                    print("created data={}".format(item))
+                except Exception as e:
+                    print(e)
 
         if '--createadmin' in args or '--createsuperuser' in args:
             """create admin user from command line"""
@@ -184,6 +222,14 @@ def initialize(args):
         
     DB.close()
     
+def JSONP(rdict):
+    """returns JSONP if cross-origin or JSON if not"""
+    # CORS = cross origin response spec. (look this up if you're confused)
+    callback = request.args.get('callback','')
+    if callback:
+        msg = "{}({})".format(callback, json.dumps(rdict))
+        return msg
+    return jsonify(rdict)
 
 def get_object_or_404(cls, object_id):
     try:
@@ -200,7 +246,7 @@ def query_to_dict(query, verbose=False):
         if verbose:
             array.append(model_to_dict(item))
         else:
-            array.append(item.data)
+            array.append(item.payload())
     return array
 
 @app.before_request
@@ -215,7 +261,7 @@ def after_request(response):
 
 @app.errorhandler(404)
 def not_found(error):
-    return make_response(jsonify({'error': 'Not found'}), 404)
+    return make_response(JSONP({'error': 'Not found'}), 404)
 
 
 def handshake_required(f):
@@ -223,7 +269,7 @@ def handshake_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not(session.get('read_token')) and not(session.get('user_token')):
-            return make_response(jsonify({'error': 'handshake session missing'}), 404)
+            return make_response(JSONP({'error': 'handshake session missing'}), 404)
         return f(*args, **kwargs)
     return decorated_function
 
@@ -237,9 +283,13 @@ def api_handshake():
     data = request.get_json()
     
     # get tokens from the data (if any are there)
-    read_token = data.get('read_token', '')
-    write_token = data.get('write_token', '')
-    user_token = data.get('user_token', '')
+    try:
+        read_token = data.get('read_token', '')
+        write_token = data.get('write_token', '')
+        user_token = data.get('user_token', '')
+    except AttributeError:
+        # malformed data was sent
+        abort(400)
     
     if user_token == "" and read_token == "":
         # die if they didn't send either a user_token or read_token
@@ -259,9 +309,9 @@ def api_handshake():
             session['user_token'] = user_token
         except:
             # in the future might want to fail silently
-            return make_response(jsonify({'error': 'No matching user_token'}), 404)
+            return make_response(JSONP({'error': 'No matching user_token'}), 404)
     
-    return jsonify({'token(s) established': 'Ok'}), 201
+    return JSONP({'token(s) established': 'Ok'}), 201
     
 def get_tokens(data={}):
     """get the tokens from the JSON data or session -- JSON overrides the session token"""
@@ -274,7 +324,7 @@ def get_tokens(data={}):
     return session_tokens
 
 @app.route('/api/v1.0', methods=['POST'])
-@handshake_required
+#@handshake_required
 def api_post():
     """create a DataObj from a POST (json) request"""
     if not request.json:
@@ -294,13 +344,13 @@ def api_post():
         # validity was established when handshake took place
         try:
             obj = DataObj.create(data=data, user_token=user_token)
-            return jsonify({'object': model_to_dict(obj)}), 201
+            return JSONP({'object': model_to_dict(obj)}), 201
         except Exception as e:
             print(e)
     else:
-        return make_response(jsonify({'error': 'no handshake data in session'}), 400)
+        return make_response(JSONP({'error': 'no handshake data in session'}), 400)
         
-    return make_response(jsonify({'error': 'data create failed'}), 400)
+    return make_response(JSONP({'error': 'data create failed'}), 400)
 
 @app.route('/api/v1.0', methods=['GET'])
 @handshake_required
@@ -315,11 +365,13 @@ def api_get_all():
         try:
             # read all objects that match the read_token or user_token
             data = DataObj.select().where( (DataObj.read_token==read_token) | (DataObj.user_token==user_token) )
-            return jsonify({'objects':query_to_dict(data)}), 201
+            return JSONP({'array':query_to_dict(data)}), 201
         except Exception as e:
             print(e)
     
-    return make_response(jsonify({'error': 'data READ failed'}), 400)
+    return make_response(JSONP({'error': 'data READ failed'}), 400)
+
+
 
 @app.route('/api/v1.0/<int:id>', methods=['GET'])
 @handshake_required
@@ -331,14 +383,16 @@ def api_get(id):
     # get object or fail
     obj = get_object_or_404(DataObj, id)
     
+    jsonp = request.args.get('callback')
+    
     # determine if token(s) allow access
     can_read = (read_token == obj.read_token) or (user_token == obj.user_token)
     
     if can_read:
-        obj.data['id'] = obj.id # inject the id into the data, useful!
-        return jsonify({'object': obj.data}), 201
+        # single object payload
+        return JSONP( obj.payload() ), 201
     
-    make_response(jsonify({'error': 'data GET failed'}), 400)
+    make_response(JSONP({'error': 'data GET failed'}), 400)
 
 @app.route('/api/v1.0/<int:id>', methods=['PUT'])
 @handshake_required
@@ -363,12 +417,11 @@ def api_put(id):
         try:
             obj.data = data
             obj.save()
-            obj.data['id'] = obj.id # inject id into data, useful!
-            return jsonify({'object': obj.data}), 201
+            return JSONP(obj.payload()), 201
         except Exception as e:
             print(e)
         
-    return make_response(jsonify({'error': 'data PUT failed'}), 400)
+    return make_response(JSONP({'error': 'data PUT failed'}), 400)
 
 @app.route('/api/v1.0/<int:id>', methods=['DELETE'])
 @handshake_required
@@ -384,15 +437,14 @@ def api_delete(id):
     can_delete = (obj.user_token == user_token) or (obj.write_token == write_token)
     
     if can_delete:
-        obj_data = obj.data # save data to be returned
-        obj_data['id'] = obj.id # inject the id, probably not needed at this point
+        payload = obj.payload()
         try:
             obj.delete_instance()
-            return jsonify({'object': obj_data}), 201
+            return JSONP(payload), 201
         except Exception as e:
             print(e)
     
-    return make_response(jsonify({'error': 'data DELETE failed'}), 400)
+    return make_response(JSONP({'error': 'data DELETE failed'}), 400)
 
 @app.route('/api/v1.0/query', methods=['GET'])
 @handshake_required
@@ -407,17 +459,21 @@ def api_query():
         all_objects = DataObj.select().where( (DataObj.read_token==read_token) | (DataObj.user_token==user_token) )
     except Exception as e:
         print(e)
-        return make_response(jsonify({'error': 'data READ failed'}), 400)  
+        return make_response(JSONP({'error': 'data READ failed'}), 400)  
     
-    # now, we build our
+    # now, we build our array to return
     selected_objects = []
     for obj in all_objects:
         for k,v in request.args.items():
+            if '!' in k:
+                # negation relation (e.g. home!=Springfield)
+                if str( obj.data.get(k[:-1])) != v:
+                    selected_objects.append(obj.payload())
+                        
             if str(obj.data.get(k)) == v:
-                obj.data['id'] = obj.id # inject id, useful!
-                selected_objects.append(obj.data)
+                selected_objects.append(obj.payload())
     
-    return jsonify({'objects': selected_objects }), 201            
+    return JSONP({'array': selected_objects }), 201            
     
 
 @app.route('/')
@@ -428,6 +484,7 @@ def index():
 @app.route('/login', methods=['GET','POST'])
 def login():
     """basic login, simple, unstyled."""
+    # TODO - add csrf token protection
     error = ""
     if request.method == 'POST':
         username = request.form.get('username')
@@ -475,6 +532,12 @@ def logout():
     """basic logout, not much to see here"""
     session.clear()
     return "you are logged out"
+
+@app.route('/token')
+@app.route('/token/<int:size>')
+def generate_token(size=12):
+    """generate a token of a particular size (default=12)"""
+    return token_generator(size=size)
 
 def create_user(is_admin=False):
     """create a user from CLI"""
