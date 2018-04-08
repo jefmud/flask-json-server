@@ -90,7 +90,13 @@ Python 2.7.9 and above.
 ```
 $ pip install flask
 $ pip install flask-bcrypt
+$ pip install flask-cors
 $ pip install peewee
+```
+### initialize the databases
+
+```
+$ python app.py --initialize
 ```
 
 ### create an administrative user
@@ -105,6 +111,21 @@ by default, it will run on port 10987
 
 ```
 $ python app.py
+```
+
+### other (optional) command line interface items
+
+Drop table with Data objects. Don't forget to reinitialize!
+
+```
+$ python app.py --drop DataObj
+$ python app.py --initialize
+```
+
+Create a few test data entries.
+
+```
+$ python app.py --testdata
 ```
 
 ### navigate to web interface
